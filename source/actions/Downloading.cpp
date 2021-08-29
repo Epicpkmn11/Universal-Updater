@@ -24,14 +24,11 @@
 *         reasonable ways as different from the original version.
 */
 
-#include "curl/curl.h"
 #include "Downloading.hpp"
-#include "dsiwifi9.h"
-#include "lwip/sockets.h"
-#include <nds.h>
 
+#include <string.h>
 
-#define  USER_AGENT   "Universal-Updater-v4.0.0"
+#define USER_AGENT "Universal-Updater-v4.0.0"
 
 static char *ResultBuf = nullptr;
 static size_t Result_Size = 0;
@@ -116,9 +113,6 @@ int downloadToFile(const std::string &URL, const std::string &Path) {
 
 	FILE *In = fopen(Path.c_str(), "wb");
 	if (In) {
-		printf("==%s==\n", (char*)ResultBuf);
-		for(int i = 0; i < 60;i++)
-			swiWaitForVBlank();
 		fwrite((uint8_t *)ResultBuf, 1, Result_Written, In);
 		fclose(In);
 	}

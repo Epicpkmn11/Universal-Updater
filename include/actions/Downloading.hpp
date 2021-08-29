@@ -24,17 +24,12 @@
 *         reasonable ways as different from the original version.
 */
 
-#ifndef DOWNDLOAD
-#define DOWNDLOAD
+#ifndef _UNIVERSAL_UPDATER_DOWNLOADING_HPP
+#define _UNIVERSAL_UPDATER_DOWNLOADING_HPP
 
-#include <string>
 #include <curl/curl.h>
+#include <string>
 
-
-// following function is from
-// https://github.com/angelsl/libctrfgh/blob/master/curl_test/src/main.c
-static size_t handle_data(char *Ptr, size_t Size, size_t NMemb, void *UserData);
-static int setupContext(CURL *Hnd, const char * url);
 int downloadToFile(const std::string &URL, const std::string &Path);
 
 #endif
