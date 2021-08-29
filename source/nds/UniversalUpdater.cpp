@@ -31,6 +31,85 @@
 #include "gui.hpp"
 #include "tonccpy.h"
 
+#include "rpc.h"
+#include <lwip/sockets.h>
+#include <dsiwifi9.h>
+
+#include "Downloading.hpp"
+
+int lSocket;
+struct sockaddr_in sLocalAddr;
+
+void appwifi_log(const char* s)
+{
+    iprintf("%s", s);
+}
+
+void appwifi_connect(void)
+{
+    rpc_init();
+}
+
+void appwifi_reconnect(void)
+{
+    rpc_deinit();
+    rpc_init();
+}
+
+void appwifi_echoserver(void)
+{
+    lSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (lSocket < 0) goto fail;
+
+    memset((char *)&sLocalAddr, 0, sizeof(sLocalAddr));
+    sLocalAddr.sin_family = AF_INET;
+    sLocalAddr.sin_len = sizeof(sLocalAddr);
+    sLocalAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    sLocalAddr.sin_port = htons(1234);
+    
+    if (bind(lSocket, (struct sockaddr *)&sLocalAddr, sizeof(sLocalAddr)) < 0) {
+        close(lSocket);
+        goto fail;
+    }
+
+    if ( listen(lSocket, 20) != 0 ){
+        close(lSocket);
+        goto fail;
+    }
+    
+    return;
+
+fail:
+    iprintf("not sure what happened\n");
+    while(1) {
+        swiWaitForVBlank();
+    }
+}
+
+void appwifi_echoserver_tick(void)
+{
+    int clientfd;
+    struct sockaddr_in client_addr;
+    int addrlen = sizeof(client_addr);
+    char buffer[256];
+    int nbytes;
+
+    fcntl(lSocket, F_SETFL, O_NONBLOCK);
+    clientfd = accept(lSocket, (struct sockaddr*)&client_addr, (socklen_t*)&addrlen);
+    if (clientfd > 0)
+    {
+        iprintf("echo_server: Accept %x\n", clientfd);
+        do
+        {
+            nbytes = recv(clientfd, buffer, sizeof(buffer),0);
+            iprintf("echo_server: Got %x bytes\n", nbytes);
+            if (nbytes>0) send(clientfd, buffer, nbytes, 0);
+        }
+        while (nbytes>0);
+
+        close(clientfd);
+    }
+}
 
 /*
 	Initialize everything as needed.
@@ -85,6 +164,15 @@ void UU::Initialize(char *ARGV[]) {
 	this->_Tabs = std::make_unique<Tabs>();
 	this->TGrid = std::make_unique<TopGrid>();
 	this->TList = std::make_unique<TopList>();
+
+	consoleDemoInit();
+
+	DSiWifi_SetLogHandler(appwifi_log);
+    DSiWifi_SetConnectHandler(appwifi_connect);
+    DSiWifi_SetReconnectHandler(appwifi_reconnect);
+    DSiWifi_InitDefault(true);
+
+	appwifi_echoserver();
 };
 
 
@@ -143,27 +231,51 @@ int UU::Handler(char *ARGV[]) {
 	// TODO: It only redraws on button press, forcing an initial draw for now
 	this->Draw();
 
+	consoleDemoInit();
+
 	while (!this->Exiting) {
 		swiWaitForVBlank();
 
-		this->ScanInput();
+		// this->ScanInput();
 
-		/* Handle Top List if possible. */
-		if (this->_Tabs->HandleTopScroll()) {
-			switch(this->TMode) {
-				case TopMode::Grid:
-					this->TGrid->Handler();
-					break;
+		// /* Handle Top List if possible. */
+		// if (this->_Tabs->HandleTopScroll()) {
+		// 	switch(this->TMode) {
+		// 		case TopMode::Grid:
+		// 			this->TGrid->Handler();
+		// 			break;
 
-				case TopMode::List:
-					this->TList->Handler();
-					break;
-			}
+		// 		case TopMode::List:
+		// 			this->TList->Handler();
+		// 			break;
+		// 	}
+		// }
+
+		// this->_Tabs->Handler(); // Tabs are always handled.
+		
+		// if (this->Repeat) this->Draw();
+
+		appwifi_echoserver_tick();
+
+        u32 addr = DSiWifi_GetIP();
+        u8 addr_bytes[4];
+        
+        memcpy(addr_bytes, &addr, 4);
+        
+        iprintf("\x1b[s\x1b[0;0HCur IP: \x1b[36m%u.%u.%u.%u        \x1b[u\x1b[37m", addr_bytes[0], addr_bytes[1], addr_bytes[2], addr_bytes[3]);
+
+		if(addr_bytes[0] == 10) {
+			printf("%d\n", downloadToFile("https://home.pk11.us/files/hi.txt", "sd:/hi.txt"));
+			while(1)swiWaitForVBlank();
 		}
 
-		this->_Tabs->Handler(); // Tabs are always handled.
-		
-		if (this->Repeat) this->Draw();
+
+        swiWaitForVBlank();
+        scanKeys();
+        if (keysDown()&KEY_START) break;
+        if (keysDown()&KEY_B) {
+            iprintf("asdf\n");
+        }
 	}
 
 	this->CData->Sav();
